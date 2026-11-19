@@ -1,0 +1,48 @@
+name: Build city guides
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'   # Mondays 09:17 UTC (3:17 AM Central)
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build from Xano
+        env:
+          XANO_SEO_URL: ${{ vars.XANO_SEO_URL || 'https://x8e3-4uyz-scg3.n7c.xano.io/api:QZQAfPcA/seo_city_pages' }}
+          SEO_EXPORT_KEY: ${{ secrets.SEO_EXPORT_KEY }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://guides.skipful.com' }}
+          APP_URL: https://www.skipful.com
+          GA4_ID: ${{ vars.GA4_ID }}
+          CNAME_DOMAIN: ${{ vars.CNAME_DOMAIN || 'guides.skipful.com' }}
+        run: node build.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
