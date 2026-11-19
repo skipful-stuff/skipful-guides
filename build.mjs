@@ -18,6 +18,7 @@ const OUT = path.join(ROOT, 'dist');
 const SITE_URL = (process.env.SITE_URL || 'https://guides.skipful.com').replace(/\/$/, '');
 const APP_URL = (process.env.APP_URL || 'https://www.skipful.com').replace(/\/$/, '');
 const GA4_ID = process.env.GA4_ID || '';
+const GSC_TOKEN = process.env.GSC_TOKEN || '';   // Google Search Console "HTML tag" verification value
 const XANO = process.env.XANO_SEO_URL || '';
 const KEY = process.env.SEO_EXPORT_KEY || '';
 const MIN_HOTELS = 3;      // a city needs at least this many collab hotels to get a page
@@ -137,12 +138,12 @@ function shape({ collabs, props, scores }) {
   const now = Date.now();
   const yearAgo = now - 365 * 864e5;
 
-  // The scraper sometimes saved the same collab twice: count each (hotel, date, followers) once.
+  // Guard against reading the same row twice (rows carry their id as `i`).
   const seen = new Set();
   const byHotel = new Map();
   for (const c of collabs) {
     if (!c.p) continue;
-    const dupKey = `${c.p}|${c.d}|${c.f}`;
+    const dupKey = c.i != null ? `id:${c.i}` : `${c.p}|${c.d}|${c.f}`;
     if (seen.has(dupKey)) continue;
     seen.add(dupKey);
     let h = byHotel.get(c.p);
@@ -287,6 +288,7 @@ function layout({ title, description, canonical, body, jsonLd = [], ogTitle }) {
 <meta property="og:url" content="${esc(canonical)}">
 <meta property="og:image" content="${SITE_URL}/og.png">
 <meta name="twitter:card" content="summary_large_image">
+${GSC_TOKEN ? `<meta name="google-site-verification" content="${esc(GSC_TOKEN)}">` : ''}
 <link rel="icon" href="${SITE_URL}/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
@@ -467,9 +469,12 @@ async function main() {
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`);
   await fs.writeFile(path.join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
   if (process.env.CNAME_DOMAIN) await fs.writeFile(path.join(OUT, 'CNAME'), process.env.CNAME_DOMAIN + '\n');
-  for (const f of ['og.png', 'favicon.png']) {
-    try { await fs.copyFile(path.join(ROOT, 'static', f), path.join(OUT, f)); } catch {}
-  }
+  // Everything in static/ is published at the site root (images, Google verification files, etc.)
+  try {
+    for (const f of await fs.readdir(path.join(ROOT, 'static'))) {
+      await fs.copyFile(path.join(ROOT, 'static', f), path.join(OUT, f));
+    }
+  } catch {}
   console.log(`Built ${cities.length} city pages (${totals.hotels} hotels, ${totals.collabs} collabs) into dist/`);
 }
 
