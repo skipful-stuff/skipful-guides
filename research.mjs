@@ -240,3 +240,64 @@ export function computeCityRanking({ collabs, allProps }, { now = Date.now(), cl
     },
   };
 }
+
+// ---------- Branded vs independent hotels ----------
+// chainOf(title) -> parent group or null. Shares and rates only; never per-hotel output.
+export function computeChainStudy({ collabs, allProps }, { now = Date.now(), chainOf, isUSFn = c => /^(US|USA|United States)$/i.test(String(c || '').trim()) } = {}) {
+  const yearAgo = now - 365 * 864e5;
+  const seen = new Set();
+  const byHotel = new Map();
+  for (const c of collabs) {
+    if (!c.p) continue;
+    const key = c.i != null ? `id:${c.i}` : `${c.p}|${c.d}|${c.f}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const f = Number(c.f), t = c.d ? Date.parse(c.d) : NaN;
+    if (!(f >= MIN_REAL_FOLLOWERS) || Number.isNaN(t) || t > now + 864e5) continue;
+    let h = byHotel.get(c.p);
+    if (!h) byHotel.set(c.p, h = { n: 0, f12: [] });
+    h.n++;
+    if (t > yearAgo) h.f12.push(f);
+  }
+  const blank = () => ({ tracked: 0, hosts: 0, repeat: 0, repeat5: 0, f12: [] });
+  const G = { branded: blank(), independent: blank() };
+  const byStar = {}, byRegion = {}, byParent = {};
+  const add = (bucket, p, h) => {
+    bucket.tracked++;
+    if (!h) return;
+    bucket.hosts++;
+    if (h.n >= 2) bucket.repeat++;
+    if (h.n >= 5) bucket.repeat5++;
+    for (const f of h.f12) bucket.f12.push(f);
+  };
+  for (const p of allProps) {
+    if (!LODGING_TYPE.test(String(p.type || 'Hotel'))) continue;
+    const parent = chainOf(p.title);
+    const g = parent ? 'branded' : 'independent';
+    const h = byHotel.get(p.id);
+    add(G[g], p, h);
+    const st = Math.round(Number(p.stars));
+    if (st >= 2 && st <= 5) { const k = `${st}-star`; byStar[k] ??= { branded: blank(), independent: blank() }; add(byStar[k][g], p, h); }
+    const reg = isUSFn(p.country) ? 'US' : 'International';
+    byRegion[reg] ??= { branded: blank(), independent: blank() };
+    add(byRegion[reg][g], p, h);
+    if (parent) { byParent[parent] ??= blank(); add(byParent[parent], p, h); }
+  }
+  const sum = b => ({
+    trackedShare: null, tracked: b.tracked, hosts: b.hosts,
+    hostingRate: pct(b.hosts, b.tracked), repeatRate: pct(b.repeat, b.hosts), repeat5Rate: pct(b.repeat5, b.hosts),
+    collabs12: b.f12.length, ...(() => { const s = split(b.f12); return { under10k: s.under10k, over100k: s.over100k, median: s.median, buckets: s.buckets }; })(),
+  });
+  const pair = o => ({ branded: sum(o.branded), independent: sum(o.independent) });
+  const out = { generatedAt: new Date(now).toISOString(), groups: pair(G), byStar: {}, byRegion: {}, byParent: {} };
+  const T = G.branded.tracked + G.independent.tracked, Hh = G.branded.hosts + G.independent.hosts, C12 = G.branded.f12.length + G.independent.f12.length;
+  for (const g of ['branded', 'independent']) {
+    out.groups[g].trackedShare = pct(G[g].tracked, T);
+    out.groups[g].hostShare = pct(G[g].hosts, Hh);
+    out.groups[g].collabShare12 = pct(G[g].f12.length, C12);
+  }
+  for (const [k, v] of Object.entries(byStar)) out.byStar[k] = pair(v);
+  for (const [k, v] of Object.entries(byRegion)) out.byRegion[k] = pair(v);
+  for (const [k, v] of Object.entries(byParent)) if (v.hosts >= 30 && v.f12.length >= 60) out.byParent[k] = sum(v);
+  return out;
+}

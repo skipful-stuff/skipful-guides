@@ -37,7 +37,7 @@ export const RESEARCH_CSS = `
 .chart details td,.chart details th{border-top:1px solid var(--line);padding:6px 8px;text-align:left}
 .chart pre{white-space:pre-wrap;word-break:break-all;background:var(--ivory);padding:10px;border-radius:8px;font-size:12px;margin:8px 0 0}
 .cite{background:var(--ivory);border-radius:16px;padding:20px 22px;font-size:15px}
-.cite code{display:block;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;font-size:13px;white-space:normal}
+.cite code{display:block;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;font-size:13px;white-space:normal;overflow-wrap:anywhere}
 .r-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
 .r-card{display:block;background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;color:var(--ink)}
 .r-card:hover{text-decoration:none;border-color:var(--champ)}
