@@ -271,7 +271,8 @@ main section{padding:52px 0;border-bottom:1px solid var(--line)}
 .table th{text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--ivory);padding:12px 14px}
 .table td{padding:14px;border-top:1px solid var(--line);vertical-align:top}
 .table td.num{white-space:nowrap}
-.hname{font-weight:600}.hmeta{font-size:13px;color:var(--muted)}
+.hname{font-weight:600}.hmeta{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:4px}.hmeta .tag{margin-left:0}
+.locked .hname{display:flex;align-items:center;gap:6px;min-width:0}.locked .blurname{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap}.locked .unlock{flex:none;margin-left:8px}
 .locked td{color:var(--mist)}
 .blur{filter:blur(5px);user-select:none}
 .gate{margin-top:22px;background:var(--ink);color:var(--ivory);border-radius:18px;padding:28px;display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between}
@@ -336,7 +337,7 @@ tr.fit td:first-child{box-shadow:inset 3px 0 0 var(--champ)}
 .mfade{filter:blur(4px);user-select:none;-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent)}
 .stick{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--ivory);border:1px solid #2A3D36;border-radius:999px;padding:8px 8px 8px 20px;box-shadow:0 10px 30px rgba(14,26,23,.25);font-weight:600;font-size:15px;max-width:calc(100% - 24px)}
 .stick[hidden]{display:none}.stick .btn{padding:10px 18px;font-size:14px;white-space:nowrap}
-@media (max-width:720px){.mm-row{flex-direction:column;max-width:none}.mailme button{width:100%}.pitchwrap{grid-template-columns:1fr}.bar{grid-template-columns:84px minmax(0,1fr) 44px;font-size:14px}.stick{left:12px;right:12px;transform:none;justify-content:space-between;font-size:14px}.fit-out .btn{display:block;margin:12px 0 0;text-align:center}.hide-sm{display:none}.table td,.table th{padding:10px}.stat{flex:1 1 calc(50% - 12px);min-width:0}.gate .btn{width:100%;text-align:center}}
+@media (max-width:720px){.mm-row{flex-direction:column;max-width:none;flex-basis:100%}.mailme{padding:16px}.mailme input{flex:none;width:100%;height:48px}body.stick-on{padding-bottom:84px}.locked .blurname{flex:1 1 auto}.locked .unlock{margin-left:auto}.table{table-layout:fixed}.table th:first-child,.table td:first-child{width:58%}.table th:not(:first-child),.table td.num{width:21%}.table th{font-size:11px;letter-spacing:.04em;white-space:normal;line-height:1.3}.mailme button{width:100%}.pitchwrap{grid-template-columns:1fr}.bar{grid-template-columns:84px minmax(0,1fr) 44px;font-size:14px}.stick{left:12px;right:12px;transform:none;justify-content:space-between;font-size:14px}.fit-out .btn{display:block;margin:12px 0 0;text-align:center}.hide-sm{display:none}.table td,.table th{padding:10px}.stat{flex:1 1 calc(50% - 12px);min-width:0}.gate .btn{width:100%;text-align:center}}
 `;
 
 function layout({ title, description, canonical, body, jsonLd = [], ogTitle }) {
@@ -508,6 +509,10 @@ ${related.length ? `<section><div class="wrap">
 var D=${JSON.stringify(fitData)},CITY=${JSON.stringify(c.city)},SLUG=${JSON.stringify(c.slug)},TOTAL=D.length;
 var f=document.getElementById('fit'),inp=document.getElementById('fit-n'),out=document.getElementById('fit-out');
 var stick=document.getElementById('stick'),stickT=document.getElementById('stick-t'),stickA=document.getElementById('stick-a');
+var stickWanted=false,blockers=new Set();
+function stickSync(){var on=stickWanted&&blockers.size===0;stick.hidden=!on;document.body.classList.toggle('stick-on',on);}
+if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting)blockers.add(x.target);else blockers.delete(x.target);});stickSync();});
+['.gate','#mailme','#fit','footer'].forEach(function(q){var el=document.querySelector(q);if(el)io.observe(el);});}
 function ev(name,p){try{if(window.gtag)gtag('event',name,Object.assign({city:CITY},p||{}));}catch(e){}}
 function k(n){return n<1000?String(n):n<1e6?(n/1000).toFixed(n<10000?1:0).replace(/\.0$/,'')+'K':(n/1e6).toFixed(1).replace(/\.0$/,'')+'M';}
 function parse(v){v=String(v).trim().toLowerCase().replace(/,/g,'');var m=v.match(/^([0-9.]+)\s*([km]?)$/);if(!m)return 0;var n=parseFloat(m[1]);if(m[2]==='k')n*=1e3;if(m[2]==='m')n*=1e6;return Math.round(n);}
@@ -523,7 +528,7 @@ out.innerHTML=hits
 : 'None of these '+TOTAL+' hotels have hosted creators between '+k(lo)+' and '+k(hi)+' yet, so you would be a first. Skipful shows nearby cities that fit. <a class="btn light" data-ev="view_fit" href="'+href+'">Find hotels that fit</a>';
 stickT.textContent=hits?hits+' '+CITY+' hotels fit you':'Find hotels that fit you';
 stickA.textContent=hits?'View all '+hits+' free':'See matches free';
-stick.hidden=false;
+stickWanted=true;stickSync();
 try{localStorage.setItem('skipful_followers',String(n));}catch(e){}
 ev('fit_check',{followers_bucket:bucket(n),hits:hits});
 }
