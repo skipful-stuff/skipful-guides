@@ -147,7 +147,7 @@ export function csv(R) {
   rows.push(['hotels_with_10plus_collabs_pct', 'All hotels', H.repeat10Pct, '']);
   rows.push(['median_days_between_collabs_repeat_hosts', 'All hotels', H.medianDaysBetween, '']);
   const q = v => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
-  return `# Skipful Research: hotel-creator collaboration statistics. Data as of ${R.generatedAt.slice(0, 10)}. Free to use with attribution and a link to the source page.\n` + rows.map(r => r.map(q).join(',')).join('\n') + '\n';
+  return `# Skipful Research: hotel-creator collaboration statistics. Data as of ${R.generatedAt.slice(0, 10)}. Free to use: please credit Skipful (https://www.skipful.com) and link to the source page.\n` + rows.map(r => r.map(q).join(',')).join('\n') + '\n';
 }
 
 export { pctFmt, kFmt, longDate, monthYear, ratio };

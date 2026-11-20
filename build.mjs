@@ -638,7 +638,7 @@ const researchHead = (R, { title, url, lede, eyebrow, meta }) => `<section class
 </div></section><style>${RESEARCH_CSS}</style>`;
 
 function citeBox(title, url, date) {
-  return `<div class="cite"><b>Cite this research</b><br>Free to use with attribution and a link. For press questions or custom cuts of the data, email <a href="mailto:${PRESS_EMAIL}?subject=Press%3A%20Skipful%20Research">${PRESS_EMAIL}</a>.
+  return `<div class="cite"><b>Cite this research</b><br>Free to use. Please credit <a href="${APP_URL}/">Skipful</a> (www.skipful.com) and link to this page. For press questions or custom cuts of the data, email <a href="mailto:${PRESS_EMAIL}?subject=Press%3A%20Skipful%20Research">${PRESS_EMAIL}</a>.
 <code>${esc(BYLINE)}. "${esc(title)}." Skipful, ${esc(longDate(date))}. ${esc(url)}</code></div>`;
 }
 
@@ -772,7 +772,7 @@ ${REPORTS.map(r => `<a class="r-card" href="${RESEARCH_URL}/${r.slug}/"><small>R
 </div>
 </div></section>
 <section><div class="wrap r-body"><h2>Using our data</h2>
-<p>Journalists, researchers and writers are welcome to cite any figure with attribution to the ${BYLINE} and a link to the page it came from. Every chart can be embedded, and the underlying aggregate data is <a href="${RESEARCH_URL}/data/skipful-hotel-creator-stats.csv">available as a CSV</a>. We're happy to run custom cuts (a city, a hotel type, a follower range) for a story: email <a href="mailto:${PRESS_EMAIL}?subject=Press%3A%20Skipful%20Research">${PRESS_EMAIL}</a>.</p>
+<p>Journalists, researchers and writers are welcome to cite any figure. Please credit <a href="${APP_URL}/">Skipful</a> (www.skipful.com) and link to the page the figure came from. Every chart can be embedded, and the underlying aggregate data is <a href="${RESEARCH_URL}/data/skipful-hotel-creator-stats.csv">available as a CSV</a>. We're happy to run custom cuts (a city, a hotel type, a follower range) for a story: email <a href="mailto:${PRESS_EMAIL}?subject=Press%3A%20Skipful%20Research">${PRESS_EMAIL}</a>.</p>
 <p>All research is aggregate. We never publish individual hotels' or creators' data.</p>
 ${researchCta('hub')}
 </div></section></main>`;
