@@ -438,7 +438,7 @@ function cityPage(c, related, generatedAt) {
 <div class="mbody"><p>Hi ${esc(top.name)} team,</p>
 <p>I'm a travel content creator, and ${esc(top.name)} is at the top of my list for my upcoming trip to ${esc(c.city)}.</p>
 <p>I saw you've partnered with ${plural(top.collabs12 || top.collabs, 'creator')} recently, and I'd love to create something similar for you.</p>
-<div class="mfade" aria-hidden="true" data-nosnippet><p>Here's what I have in mind: one Reel and three Stories featuring your rooms and the local experience, plus edited photos for your own channels.</p></div>
+<div class="mfade" aria-hidden="true" data-nosnippet><p>Here's what I have in mind: two short videos and a set of story posts featuring your rooms and the local experience, plus edited photos for your own channels.</p></div>
 </div></div>
 </div></section>` : '';
 
@@ -451,7 +451,7 @@ function cityPage(c, related, generatedAt) {
     [`How does Skipful know a hotel collaborates with creators?`,
       `Skipful looks for social media posts where a creator and the hotel appear together, such as collab posts that tag both accounts, then checks each one before counting it. Hotels with more, and more recent, collabs rank higher.`],
     [`How do I pitch a hotel in ${c.city}?`,
-      `Lead with the hotel's own history: mention that they've worked with creators before, propose specific deliverables (for example one Reel, three Stories and edited photos), and suggest dates. Skipful drafts a personalized pitch for each hotel and gives you the best inbox to send it to.`],
+      `Lead with the hotel's own history: mention that they've worked with creators before, propose specific deliverables (for example two short videos, a set of story posts and edited photos), and suggest dates. Skipful drafts a personalized pitch for each hotel and gives you the best inbox to send it to.`],
   ];
 
   const body = `
@@ -812,6 +812,14 @@ async function writeResearch(raw) {
 
 async function main() {
   const raw = await loadData();
+  // Snapshot mode: save this month's research numbers for the next report, then stop (no site build).
+  if (process.env.SNAPSHOT_OUT) {
+    const R = computeResearch(raw, { cleanCity, countryName });
+    await fs.mkdir(path.dirname(path.resolve(ROOT, process.env.SNAPSHOT_OUT)), { recursive: true });
+    await fs.writeFile(path.resolve(ROOT, process.env.SNAPSHOT_OUT), JSON.stringify(R) + '\n');
+    console.log(`Saved research snapshot: ${R.totals.collabs} collabs, ${R.totals.hotels} hotels -> ${process.env.SNAPSHOT_OUT}`);
+    return;
+  }
   const generatedAt = new Date().toISOString();
   const cities = shape(raw);
   if (!cities.length) throw new Error('No cities to publish');

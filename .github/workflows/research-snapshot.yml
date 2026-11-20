@@ -1,0 +1,38 @@
+name: Research snapshot
+
+# Saves the month's aggregate research numbers to data/research/snapshots/YYYY-MM.json.
+# The monthly report draft is written from this file. Can also be run by hand (Actions tab).
+on:
+  schedule:
+    - cron: '7 6 1 * *'   # 1st of each month, 06:07 UTC (just after midnight Central)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compute snapshot from Xano
+        env:
+          XANO_SEO_URL: ${{ vars.XANO_SEO_URL || 'https://x8e3-4uyz-scg3.n7c.xano.io/api:QZQAfPcA/seo_city_pages' }}
+          SEO_EXPORT_KEY: ${{ secrets.SEO_EXPORT_KEY }}
+        run: |
+          SNAPSHOT_OUT="data/research/snapshots/$(date -u +%Y-%m).json" node build.mjs
+      - name: Commit snapshot
+        run: |
+          git config user.name "skipful-research-bot"
+          git config user.email "research-bot@users.noreply.github.com"
+          git add data/research/snapshots
+          git diff --cached --quiet && echo "No change" && exit 0
+          git commit -m "Research snapshot $(date -u +%Y-%m)"
+          git push
