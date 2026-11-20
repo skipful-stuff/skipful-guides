@@ -9,6 +9,7 @@ The monthly drafting task reads this file. Edit it to change topics or rules.
 - **Shares, not volume.** Collection coverage changed over time (about 3,500 collabs a month were captured in 2025 versus about 800 a month in 2026), so never report month-to-month counts, growth, "rising cities" or seasonality until the unlock below is met.
 - Every number in a report must come from that month's snapshot file. No numbers from memory or outside sources. Round the way `research_pages.mjs` does.
 - Check the snapshot against last month's before writing. If a headline share moved more than 5 points, or totals fell, stop and flag it in the PR instead of writing around it.
+- Never name a social platform (no Instagram, TikTok, YouTube, Reels, etc.). Say "social media", "posts", "short videos".
 - Plain, confident, newsy writing; one headline stat a reporter could quote; no hype words.
 
 ## Seasonality and growth unlock
