@@ -812,6 +812,14 @@ async function writeResearch(raw) {
 
 async function main() {
   const raw = await loadData();
+  // Snapshot mode: save this month's research numbers for the next report, then stop (no site build).
+  if (process.env.SNAPSHOT_OUT) {
+    const R = computeResearch(raw, { cleanCity, countryName });
+    await fs.mkdir(path.dirname(path.resolve(ROOT, process.env.SNAPSHOT_OUT)), { recursive: true });
+    await fs.writeFile(path.resolve(ROOT, process.env.SNAPSHOT_OUT), JSON.stringify(R) + '\n');
+    console.log(`Saved research snapshot: ${R.totals.collabs} collabs, ${R.totals.hotels} hotels -> ${process.env.SNAPSHOT_OUT}`);
+    return;
+  }
   const generatedAt = new Date().toISOString();
   const cities = shape(raw);
   if (!cities.length) throw new Error('No cities to publish');

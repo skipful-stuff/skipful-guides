@@ -51,3 +51,9 @@ We publish **shares only**, never volume trends: collection coverage changed ove
 `RESEARCH_URL` (repo variable) sets canonical URLs. Leave it unset for `https://guides.skipful.com/research`; set it to `https://www.skipful.com/research` once Cloudflare serves the pages there.
 
 Local preview with the real snapshot: `RESEARCH_DATA=data/research/2026-11-small-creator-advantage.json node build.mjs`
+
+### Monthly autopilot
+
+1. On the 1st of each month, the **Research snapshot** GitHub Action saves `data/research/snapshots/YYYY-MM.json` from Xano. You can also run it by hand from the Actions tab.
+2. Later that day, a scheduled Claude task drafts the next report from `data/research/REPORT_PLAN.md`. It adds a frozen copy of the snapshot plus an entry in `REPORTS`, then opens a PR with a preview, a press-pitch draft and social posts.
+3. Review and merge, and the report is live. Nothing publishes without a merge.
