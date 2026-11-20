@@ -12,6 +12,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { computeResearch } from './research.mjs';
+import { BYLINE, RESEARCH_CSS, barChart, charts as researchCharts, keyStats, methodology, csv as researchCsv, pctFmt, kFmt, longDate, ratio } from './research_pages.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(ROOT, 'dist');
@@ -27,6 +29,9 @@ const LOCKED_ROWS = 9;     // locked rows shown under the named ones before "+ N
 const SECTION = 'hotels-that-work-with-influencers';
 const EMAIL_LIST_URL = process.env.EMAIL_LIST_URL || 'https://x8e3-4uyz-scg3.n7c.xano.io/api:QZQAfPcA/guide_email_list';
 const MIN_REAL_FOLLOWERS = 500; // below this the follower count is almost certainly bad data
+// Research pages live under /research/. Once Cloudflare serves them at www.skipful.com/research/, set RESEARCH_URL to that.
+const RESEARCH_URL = (process.env.RESEARCH_URL || `${SITE_URL}/research`).replace(/\/$/, '');
+const PRESS_EMAIL = 'info@skipful.com';
 
 // ---------- data ----------
 
@@ -371,7 +376,7 @@ ${ga}
 ${body}
 <footer><div class="wrap">
 <p>Skipful scores 60,000+ hotels on real creator collaborations found on social media, so travel creators can pitch the places already saying yes.</p>
-<p><a href="${APP_URL}/">Skipful</a> · <a href="${APP_URL}/pricing/">Pricing</a> · <a href="${SITE_URL}/">All city guides</a> · <a href="mailto:info@skipful.com">info@skipful.com</a></p>
+<p><a href="${APP_URL}/">Skipful</a> · <a href="${APP_URL}/pricing/">Pricing</a> · <a href="${SITE_URL}/">All city guides</a> · <a href="${RESEARCH_URL}/">Research</a> · <a href="mailto:info@skipful.com">info@skipful.com</a></p>
 </div></footer>
 </body>
 </html>`;
@@ -609,6 +614,200 @@ ${countries.map(([country, list]) => `<div class="country"><h3>${esc(country)}</
   });
 }
 
+
+// ---------- research ----------
+
+const STATS_SLUG = 'hotel-influencer-marketing-statistics';
+const REPORTS = [
+  {
+    slug: 'small-creator-advantage',
+    snapshot: 'data/research/2026-11-small-creator-advantage.json',
+    published: '2026-11-20',
+    title: 'The Small-Creator Advantage: Nearly 1 in 3 Hotel Collabs Go to Creators Under 10K',
+    short: 'The small-creator advantage',
+    dek: 'We analyzed 40,000+ hotel–creator collaborations. Hotels say yes to small creators far more often than most creators think, and some cities and hotel types are much more open than others.',
+  },
+];
+
+const researchHead = (R, { title, url, lede, eyebrow, meta }) => `<section class="r-hero"><div class="wrap">
+<div class="crumbs"><a href="${SITE_URL}/">Skipful</a> / <a href="${RESEARCH_URL}/">Research</a></div>
+<p class="eyebrow">${esc(eyebrow)}</p>
+<h1>${esc(title)}</h1>
+<p class="lede">${lede}</p>
+<p class="r-meta">${meta}</p>
+</div></section><style>${RESEARCH_CSS}</style>`;
+
+function citeBox(title, url, date) {
+  return `<div class="cite"><b>Cite this research</b><br>Free to use with attribution and a link. For press questions or custom cuts of the data, email <a href="mailto:${PRESS_EMAIL}?subject=Press%3A%20Skipful%20Research">${PRESS_EMAIL}</a>.
+<code>${esc(BYLINE)}. "${esc(title)}." Skipful, ${esc(longDate(date))}. ${esc(url)}</code></div>`;
+}
+
+function chartBlock(R, key, pageUrl) {
+  const c = researchCharts(R)[key];
+  return barChart({ id: key, ...c, citeUrl: pageUrl, embedUrl: `${RESEARCH_URL}/embed/${key}/` });
+}
+
+const researchCta = (where) => `<div class="r-cta"><p><b style="color:var(--ivory)">Are you a travel creator?</b> See which hotels in your city have hosted creators your size, and get the right inbox to pitch.</p><a class="btn light" data-ev="research_${where}" href="${APP_URL}/signup/?utm_source=research&utm_medium=content&utm_campaign=${where}">Find hotels that fit you</a></div>`;
+
+function statsPage(R) {
+  const url = `${RESEARCH_URL}/${STATS_SLUG}/`;
+  const year = R.generatedAt.slice(0, 4);
+  const title = `Hotel Influencer Marketing Statistics (${year})`;
+  const L = R.last12;
+  const stats = keyStats(R);
+  const body = researchHead(R, {
+    title, url, eyebrow: 'Skipful Research · Updated regularly',
+    lede: `Fresh data on how hotels work with travel creators: who they host, how big those creators are, and where small creators get the most yeses. Based on ${R.totals.collabs.toLocaleString('en-US')} hotel–creator collabs at ${R.totals.hotels.toLocaleString('en-US')} hotels in ${R.totals.countries} countries.`,
+    meta: `By the ${BYLINE} · Data updated ${longDate(R.generatedAt)}`,
+  }) + `<main>
+<section><div class="wrap">
+<div class="stats" style="margin-top:0">
+<div class="stat" style="background:var(--ink)"><b>${pctFmt(L.under10k)}</b><span>of collabs went to creators under 10K</span></div>
+<div class="stat" style="background:var(--ink)"><b>${kFmt(L.median)}</b><span>median creator follower count</span></div>
+<div class="stat" style="background:var(--ink)"><b>${pctFmt(R.hosts.hostedUnder10kPct)}</b><span>of hotels have hosted a creator under 10K</span></div>
+<div class="stat" style="background:var(--ink)"><b>${pctFmt(R.hosts.repeat2Pct)}</b><span>of hotels hosted creators more than once</span></div>
+</div>
+</div></section>
+<section><div class="wrap"><h2>Key hotel influencer marketing statistics</h2>
+<ol class="keylist">${stats.map(s => `<li>${s}</li>`).join('')}</ol>
+<p class="note">Figures cover the last 12 months unless noted. <a href="${RESEARCH_URL}/data/skipful-hotel-creator-stats.csv">Download the data (CSV)</a></p>
+</div></section>
+<section><div class="wrap r-body"><h2>Hotels host creators of every size</h2>
+<p>Most hotel–creator collabs don't go to big accounts. The middle of the market, creators with 10K to 50K followers, gets the largest share, and creators under 10K together get ${ratio10(L.under10k)} of all collabs.</p>
+${chartBlock(R, 'follower-size', url)}
+<h2>Luxury skews bigger, but isn't closed</h2>
+<p>The higher the star rating, the bigger the creators a hotel tends to host. 5-star hotels give ${pctFmt(R.byStars['5-star']?.over100k ?? 0)} of their collabs to creators with 100K+ followers, ${timesWord((R.byStars['5-star']?.over100k ?? 0) / (R.byStars['3-star']?.over100k || 1))} the rate at 3-star hotels. Still, ${ratio(R.byStars['5-star']?.under10k ?? 0)} 5-star collabs went to creators under 10K.</p>
+${chartBlock(R, 'star-rating', url)}
+<h2>Where small creators get the most yeses</h2>
+<p>The share of collabs going to creators under 10K varies widely by market, from ${pctFmt(R.countries[0]?.under10k ?? 0)} in ${esc(R.countries[0]?.name || '')} to ${pctFmt(R.countries[R.countries.length - 1]?.under10k ?? 0)} in ${esc(R.countries[R.countries.length - 1]?.name || '')}.</p>
+${chartBlock(R, 'countries', url)}
+${chartBlock(R, 'cities', url)}
+<p>The toughest major cities for smaller creators: ${R.toughestCities.slice(0, 4).map(c => `${esc(c.place.replace(/, (United States|United Kingdom)$/, ''))} (${pctFmt(c.under10k)})`).join(', ')}.</p>
+<h2>Hotels that work with creators keep doing it</h2>
+<p>Creator partnerships are a habit, not a one-off: ${pctFmt(R.hosts.repeat2Pct)} of hotels in our data hosted creators more than once, and among repeat hosts the median gap between collabs is ${R.hosts.medianDaysBetween} days. On average, each hotel had ${R.hosts.avgCollabsPerHotel} creator collabs in the dataset.</p>
+${researchCta('stats')}
+</div></section>
+<section><div class="wrap r-body"><h2>Methodology</h2>${methodology(R)}
+${citeBox(title, url, R.generatedAt)}
+<p class="note" style="margin-top:18px">More from Skipful Research: ${REPORTS.map(r => `<a href="${RESEARCH_URL}/${r.slug}/">${esc(r.short)}</a>`).join(' · ')} · <a href="${SITE_URL}/">City guides</a></p>
+</div></section>
+</main>`;
+  const jsonLd = [{
+    '@context': 'https://schema.org', '@type': 'Dataset', name: title, url,
+    description: `Aggregate statistics on hotel–creator (influencer) collaborations: creator follower sizes, star ratings, countries and cities. ${R.totals.collabs} collabs at ${R.totals.hotels} hotels.`,
+    creator: { '@type': 'Organization', name: BYLINE, parentOrganization: { '@type': 'Organization', name: 'Skipful', url: APP_URL } },
+    dateModified: R.generatedAt.slice(0, 10), license: 'https://creativecommons.org/licenses/by/4.0/', isAccessibleForFree: true,
+    temporalCoverage: `${R.totals.first}/${R.totals.last}`,
+    distribution: [{ '@type': 'DataDownload', encodingFormat: 'text/csv', contentUrl: `${RESEARCH_URL}/data/skipful-hotel-creator-stats.csv` }],
+  }];
+  return { url, html: layout({ title: `${title} | Skipful Research`, description: `${pctFmt(L.under10k)} of hotel–creator collabs go to creators under 10K followers. Updated stats on hotel influencer marketing: follower sizes, star ratings, countries and cities.`, canonical: url, body, jsonLd, ogTitle: title }) };
+}
+const andList = a => (a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+const timesWord = x => (x >= 2.75 ? 'about three times' : x >= 1.9 ? 'more than double' : x >= 1.4 ? 'about 1.5 times' : 'slightly above');
+const ratio10 = p => (p >= 30 && p < 34 ? 'nearly a third' : `${pctFmt(p)}`);
+
+function reportPage(rep, R) {
+  const url = `${RESEARCH_URL}/${rep.slug}/`;
+  const L = R.last12, S = R.byStars, H = R.hosts;
+  const s5 = S['5-star'], s3 = S['3-star'], s4 = S['4-star'];
+  const cities = R.smallFriendlyCities, tough = R.toughestCities;
+  const body = researchHead(R, {
+    title: rep.title, url, eyebrow: 'Skipful Research · Data report', lede: esc(rep.dek),
+    meta: `By the ${BYLINE} · Published ${longDate(rep.published)} · Data through ${longDate(R.generatedAt)}`,
+  }) + `<main>
+<section><div class="wrap r-body">
+<h2>Key findings</h2>
+<ul>
+<li><b>${pctFmt(L.under10k)}</b> of hotel–creator collabs in the last 12 months went to creators with fewer than 10,000 followers. Only ${pctFmt(L.over100k)} went to creators with 100K+.</li>
+<li><b>${pctFmt(H.hostedUnder10kPct)}</b> of hotels that work with creators have hosted at least one creator under 10K.</li>
+<li>Smaller creators do best at <b>3- and 4-star hotels</b> (${pctFmt(s3.under10k)} and ${pctFmt(s4.under10k)} of collabs), but even <b>5-star hotels</b> gave ${pctFmt(s5.under10k)} of their collabs to creators under 10K.</li>
+<li><b>${esc(cities[0].place)}</b> and <b>${esc(cities[1].place)}</b> are the most small-creator-friendly major cities; <b>${esc(tough[0].place)}</b> is the toughest.</li>
+<li>The small-creator share held between ${pctFmt(R.stability.min)} and ${pctFmt(R.stability.max)} in every month with enough data. This is how the market works, not a blip.</li>
+</ul>
+<p class="pull">Follower count isn't the gate. The hotels you pitch are.</p>
+<p>Most creators assume hotels only want big accounts. The data says otherwise. Across ${R.totals.collabs.toLocaleString('en-US')} hotel–creator collabs at ${R.totals.hotels.toLocaleString('en-US')} hotels in ${R.totals.countries} countries, the typical creator in a hotel collab has ${kFmt(L.median)} followers, and ${ratio(L.under10k)} collabs went to creators under 10K.</p>
+<h2>1. Small creators get a third of hotel collabs</h2>
+<p>Creators with fewer than 5,000 followers alone accounted for ${pctFmt(L.buckets[0].pct)} of collabs, more than creators with 100K to 500K (${pctFmt(L.buckets[4].pct)}). Creators with 500K+ followers, the accounts many assume dominate travel, got just ${pctFmt(L.buckets[5].pct)}.</p>
+${chartBlock(R, 'follower-size', url)}
+<h2>2. Star rating matters more than follower count suggests</h2>
+<p>At 3-star hotels, ${ratio(s3.under10k)} collabs (${pctFmt(s3.under10k)}) went to creators under 10K. At 5-star hotels it was ${pctFmt(s5.under10k)}, and ${pctFmt(s5.over100k)} of 5-star collabs went to creators with 100K+. The median creator hosted by a 5-star hotel had ${kFmt(s5.median)} followers, versus ${kFmt(s3.median)} at 3-star hotels. Resorts also skew bigger than hotels (${pctFmt(R.byType.Resorts.under10k)} vs. ${pctFmt(R.byType.Hotels.under10k)} under 10K).</p>
+${chartBlock(R, 'star-rating', url)}
+<p>For smaller creators that's a strategy, not a ceiling: lead with 3- and 4-star and boutique properties, build a portfolio of hosted stays, and pitch luxury once you can show results.</p>
+<h2>3. Where you pitch changes your odds</h2>
+<p>In ${esc(cities[0].place)}, ${pctFmt(cities[0].under10k)} of hotel collabs went to creators under 10K, and the median creator there had just ${kFmt(cities[0].median)} followers. In ${esc(tough[0].place)}, only ${pctFmt(tough[0].under10k)} did, and the median creator had ${kFmt(tough[0].median)}. Big global names like ${esc(tough.filter(t => /London|Paris/.test(t.city)).map(t => t.city).join(' and ') || 'London and Paris')} sit near the bottom too.</p>
+${chartBlock(R, 'cities', url)}
+<p>By country, ${esc(andList(R.countries.slice(0, 4).map(c => c.name)))} were the most open to smaller creators; ${esc(andList(R.countries.slice(-3).map(c => c.name)))} the least.</p>
+${chartBlock(R, 'countries', url)}
+<h2>4. Hotels that say yes keep saying yes</h2>
+<p>${pctFmt(H.repeat2Pct)} of hotels in our data hosted creators more than once, ${pctFmt(H.repeat5Pct)} hosted five or more, and ${pctFmt(H.repeat10Pct)} hosted ten or more. At repeat hosts, the median gap between collabs was ${H.medianDaysBetween} days. A hotel that has hosted a creator your size recently is the warmest pitch you can send.</p>
+<h2>What it means</h2>
+<p><b>For creators:</b> follower count is not the gate most people think it is. Pitch hotels that have already hosted creators near your size, start with 3- and 4-star and boutique properties, and favor cities where small creators win more often.</p>
+<p><b>For hotels and travel brands:</b> smaller creators are already a core part of the hotel collab market. Fewer than one in four collabs go to creators with 100K+ followers, so hotels that only court big accounts are competing for a small slice of the creators their peers actually work with.</p>
+${researchCta(rep.slug)}
+</div></section>
+<section><div class="wrap r-body"><h2>Methodology</h2>${methodology(R)}
+<p>This report uses a fixed snapshot of the data as of ${longDate(R.generatedAt)} so the numbers stay citable. For the latest figures, see <a href="${RESEARCH_URL}/${STATS_SLUG}/">Hotel Influencer Marketing Statistics</a>, which updates regularly.</p>
+${citeBox(rep.title, url, rep.published)}
+</div></section>
+</main>`;
+  const jsonLd = [{
+    '@context': 'https://schema.org', '@type': 'Article', headline: rep.title, description: rep.dek, url,
+    datePublished: rep.published, dateModified: rep.published,
+    author: { '@type': 'Organization', name: BYLINE }, publisher: { '@type': 'Organization', name: 'Skipful', url: APP_URL, logo: { '@type': 'ImageObject', url: `${SITE_URL}/favicon.png` } },
+    image: `${SITE_URL}/og.png`, mainEntityOfPage: url,
+  }];
+  return { url, html: layout({ title: `${rep.title} | Skipful Research`, description: rep.dek, canonical: url, body, jsonLd, ogTitle: rep.title }) };
+}
+
+function researchHub(R) {
+  const url = `${RESEARCH_URL}/`;
+  const body = researchHead(R, {
+    title: 'Skipful Research', url, eyebrow: 'Data on hotels and travel creators',
+    lede: `Original research from the ${BYLINE}, built on ${R.totals.collabs.toLocaleString('en-US')} hotel–creator collaborations at ${R.totals.hotels.toLocaleString('en-US')} hotels in ${R.totals.countries} countries.`,
+    meta: `Press and data requests: <a href="mailto:${PRESS_EMAIL}?subject=Press%3A%20Skipful%20Research" style="color:var(--champ)">${PRESS_EMAIL}</a>`,
+  }) + `<main><section><div class="wrap">
+<div class="r-cards">
+<a class="r-card" href="${RESEARCH_URL}/${STATS_SLUG}/"><small>Always up to date</small><h3>Hotel Influencer Marketing Statistics (${R.generatedAt.slice(0, 4)})</h3><p>The key numbers on who hotels host, by follower size, star rating, country and city.</p></a>
+${REPORTS.map(r => `<a class="r-card" href="${RESEARCH_URL}/${r.slug}/"><small>Report · ${esc(longDate(r.published))}</small><h3>${esc(r.title)}</h3><p>${esc(r.dek)}</p></a>`).join('\n')}
+</div>
+</div></section>
+<section><div class="wrap r-body"><h2>Using our data</h2>
+<p>Journalists, researchers and writers are welcome to cite any figure with attribution to the ${BYLINE} and a link to the page it came from. Every chart can be embedded, and the underlying aggregate data is <a href="${RESEARCH_URL}/data/skipful-hotel-creator-stats.csv">available as a CSV</a>. We're happy to run custom cuts (a city, a hotel type, a follower range) for a story: email <a href="mailto:${PRESS_EMAIL}?subject=Press%3A%20Skipful%20Research">${PRESS_EMAIL}</a>.</p>
+<p>All research is aggregate. We never publish individual hotels' or creators' data.</p>
+${researchCta('hub')}
+</div></section></main>`;
+  return { url, html: layout({ title: 'Skipful Research: Data on Hotels and Travel Creators', description: 'Original research on hotel–creator collaborations: who hotels host, by follower size, star rating, country and city. Free to cite.', canonical: url, body }) };
+}
+
+function embedPage(R, key) {
+  const c = researchCharts(R)[key];
+  const src = `${RESEARCH_URL}/${STATS_SLUG}/`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(c.title)} | Skipful Research</title><link rel="canonical" href="${esc(src)}"><meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
+<style>${CSS}${RESEARCH_CSS}body{background:transparent}.chart{margin:0}.chart a{color:var(--bronze)}</style></head><body>
+${barChart({ id: key, ...c, citeUrl: src }).replace(/<a href=/g, '<a target="_blank" rel="noopener" href=')}
+</body></html>`;
+}
+
+async function writeResearch(raw) {
+  const R = process.env.RESEARCH_DATA
+    ? JSON.parse(await fs.readFile(path.join(ROOT, process.env.RESEARCH_DATA), 'utf8'))
+    : computeResearch(raw, { cleanCity, countryName });
+  const base = path.join(OUT, 'research');
+  const put = async (rel, html) => { await fs.mkdir(path.join(base, rel), { recursive: true }); await fs.writeFile(path.join(base, rel, 'index.html'), html); };
+  const urls = [];
+  const hub = researchHub(R); await put('', hub.html); urls.push(hub.url);
+  const st = statsPage(R); await put(STATS_SLUG, st.html); urls.push(st.url);
+  for (const rep of REPORTS) {
+    const snap = JSON.parse(await fs.readFile(path.join(ROOT, rep.snapshot), 'utf8'));
+    const pg = reportPage(rep, snap); await put(rep.slug, pg.html); urls.push(pg.url);
+  }
+  for (const key of Object.keys(researchCharts(R))) await put(`embed/${key}`, embedPage(R, key));
+  await fs.mkdir(path.join(base, 'data'), { recursive: true });
+  await fs.writeFile(path.join(base, 'data', 'skipful-hotel-creator-stats.csv'), researchCsv(R));
+  return urls;
+}
+
 // ---------- build ----------
 
 async function main() {
@@ -632,6 +831,8 @@ async function main() {
     await fs.writeFile(path.join(dir, 'index.html'), html);
     urls.push(url);
   }
+
+  for (const u of await writeResearch(raw)) urls.push(u);
 
   const totals = { hotels: cities.reduce((s, c) => s + c.hotels.length, 0), collabs: cities.reduce((s, c) => s + c.collabs, 0) };
   await fs.writeFile(path.join(OUT, 'index.html'), indexPage(cities, totals));
