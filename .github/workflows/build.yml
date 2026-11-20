@@ -27,6 +27,7 @@ jobs:
       - name: Build from Xano
         env:
           XANO_SEO_URL: ${{ vars.XANO_SEO_URL || 'https://x8e3-4uyz-scg3.n7c.xano.io/api:QZQAfPcA/seo_city_pages' }}
+          RESEARCH_URL: ${{ vars.RESEARCH_URL }}
           SEO_EXPORT_KEY: ${{ secrets.SEO_EXPORT_KEY }}
           SITE_URL: ${{ vars.SITE_URL || 'https://guides.skipful.com' }}
           APP_URL: https://www.skipful.com

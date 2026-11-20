@@ -849,8 +849,12 @@ async function main() {
   await fs.writeFile(path.join(OUT, '404.html'), layout({ title: 'Page not found | Skipful', description: 'This page moved.', canonical: `${SITE_URL}/`, body: `<section class="hero"><div class="wrap"><h1>That page isn't here</h1><p class="lede"><a href="${SITE_URL}/" style="color:var(--champ)">Browse all city guides</a></p></div></section>` }));
 
   const today = generatedAt.slice(0, 10);
-  await fs.writeFile(path.join(OUT, 'sitemap.xml'),
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`);
+  // A sitemap may only list URLs on its own host. When research is served from another host
+  // (skipful.com/research/ via the Cloudflare Worker), it gets its own sitemap there.
+  const sameHost = u => new URL(u).host === new URL(SITE_URL).host;
+  const sitemapXml = list => `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${list.map(u => `<url><loc>${esc(u)}</loc><lastmod>${today}</lastmod></url>`).join('\n')}\n</urlset>\n`;
+  await fs.writeFile(path.join(OUT, 'sitemap.xml'), sitemapXml(urls.filter(sameHost)));
+  await fs.writeFile(path.join(OUT, 'research', 'sitemap.xml'), sitemapXml(urls.filter(u => u.startsWith(RESEARCH_URL + '/'))));
   await fs.writeFile(path.join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE_URL}/sitemap.xml\n`);
   if (process.env.CNAME_DOMAIN) await fs.writeFile(path.join(OUT, 'CNAME'), process.env.CNAME_DOMAIN + '\n');
   // Everything in static/ is published at the site root (images, Google verification files, etc.)

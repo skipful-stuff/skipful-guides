@@ -57,3 +57,7 @@ Local preview with the real snapshot: `RESEARCH_DATA=data/research/2026-11-small
 1. On the 1st of each month, the **Research snapshot** GitHub Action saves `data/research/snapshots/YYYY-MM.json` from Xano. You can also run it by hand from the Actions tab.
 2. Later that day, a scheduled Claude task drafts the next report from `data/research/REPORT_PLAN.md`. It adds a frozen copy of the snapshot plus an entry in `REPORTS`, then opens a PR with a preview, a press-pitch draft and social posts.
 3. Review and merge, and the report is live. Nothing publishes without a merge.
+
+### Serving research at skipful.com/research/
+
+`cloudflare/skipful-apex-worker.js` runs on the route `skipful.com/*`. It serves `/research/...` from this site and 301-redirects every other path to the same path on `www.skipful.com`. `www.skipful.com` is untouched: it stays DNS-only to WeWeb's hosting. Once the Worker is live, set the repo variable `RESEARCH_URL=https://skipful.com/research`, so canonical links, guide footers and the research sitemap (`/research/sitemap.xml`) use that address.
