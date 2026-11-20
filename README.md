@@ -30,3 +30,8 @@ Static SEO site for guides.skipful.com: one page per destination listing the hot
 node build.mjs                      # uses data/sample_compact.json
 XANO_SEO_URL=https://x8e3-4uyz-scg3.n7c.xano.io/api:QZQAfPcA/seo_city_pages node build.mjs   # real data
 ```
+
+## Email teaser and "Email me this list"
+
+- The build also asks `seo_city_pages` for `dataset: "emails"`, which returns only a count of contact emails per hotel (never addresses). Guides show "We found a contact email for N of these hotels".
+- The "Email me this list" form posts to the public Xano endpoint `guide_email_list` (Opportunities group, #1352; source in `xano/guide_email_list.xs`). It saves the request in the `guide_leads` table and sends one fixed-template email per address and city per day, capped at 100 sends an hour. Override the URL with `EMAIL_LIST_URL`.

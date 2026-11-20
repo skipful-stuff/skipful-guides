@@ -25,6 +25,7 @@ const MIN_HOTELS = 3;      // a city needs at least this many collab hotels to g
 const NAMED_HOTELS = 3;    // hotels named publicly per city; the rest show stats only, names unlock in the app
 const LOCKED_ROWS = 9;     // locked rows shown under the named ones before "+ N more"
 const SECTION = 'hotels-that-work-with-influencers';
+const EMAIL_LIST_URL = process.env.EMAIL_LIST_URL || 'https://x8e3-4uyz-scg3.n7c.xano.io/api:QZQAfPcA/guide_email_list';
 const MIN_REAL_FOLLOWERS = 500; // below this the follower count is almost certainly bad data
 
 // ---------- data ----------
@@ -58,14 +59,21 @@ async function fetchAll() {
   const ids = [...new Set(collabs.map(c => c.p).filter(Boolean))];
   const props = [];
   const scores = [];
+  const emails = [];
   for (let i = 0; i < ids.length; i += 400) {
     const chunk = ids.slice(i, i + 400);
     props.push(...await call({ dataset: 'properties', ids: chunk }));
     await sleep(300);
     scores.push(...await call({ dataset: 'scores', ids: chunk }));
     await sleep(300);
+    try {
+      emails.push(...await call({ dataset: 'emails', ids: chunk })); // counts per hotel only, never addresses
+    } catch (e) {
+      console.log(`Email counts unavailable: ${e.message}`);
+    }
+    await sleep(300);
   }
-  return { collabs, props, scores };
+  return { collabs, props, scores, emails };
 }
 
 async function loadData() {
@@ -76,6 +84,7 @@ async function loadData() {
       collabs: s.c.map(([p, d, f]) => ({ p, d, f })),
       props: s.p.map(([id, title, city, state, country, stars, rating, type]) => ({ id, title, city, state, country, stars, rating, type })),
       scores: s.s.map(([p, sc]) => ({ p, s: sc })),
+      emails: (s.e || []).map(([p, n]) => ({ p, n })),
     };
   }
   const data = await fetchAll();
@@ -132,8 +141,9 @@ function cleanCity(raw) {
   return CITY_ALIASES[fold(city)] || city;
 }
 
-function shape({ collabs, props, scores }) {
+function shape({ collabs, props, scores, emails = [] }) {
   const propById = new Map(props.map(p => [p.id, p]));
+  const emailsById = new Map(emails.map(e => [e.p, Number(e.n) || 0]));
   const scoreById = new Map();
   for (const s of scores) if (s.s != null) scoreById.set(s.p, Math.max(scoreById.get(s.p) ?? 0, s.s));
   const now = Date.now();
@@ -184,6 +194,7 @@ function shape({ collabs, props, scores }) {
       id, name: String(p.title).trim(), type: p.type || null,
       stars: p.stars || null, rating: p.rating || null, score: scoreById.get(id) ?? null,
       collabs: h.n, collabs12: h.n12, n30: h.n30, smallest: h.minF, last: h.last, fl: h.fl,
+      emails: emailsById.get(id) || 0,
     });
   }
 
@@ -195,6 +206,7 @@ function shape({ collabs, props, scores }) {
     c.smallest = smalls[0] ?? null;
     c.medianSmallest = smalls.length ? smalls[Math.floor(smalls.length / 2)] : null;
     c.under10k = c.hotels.filter(h => h.smallest && h.smallest < 10000).length;
+    c.withEmail = c.hotels.filter(h => h.emails > 0).length; // hotels with a contact email found (count only)
     let slug = slugify(c.isUS && c.state ? `${c.city} ${c.state}` : `${c.city} ${c.country}`);
     if (used.has(slug)) slug = `${slug}-${c.hotels[0].id}`;
     used.add(slug);
@@ -290,6 +302,14 @@ footer a{color:var(--ivory)}
 .more a{color:var(--bronze)}
 .more td{text-align:center;font-weight:600;color:var(--bronze);background:var(--ivory)}
 .gate-cta{display:flex;flex-direction:column;align-items:center;gap:8px}.gate-cta small{color:var(--mist);font-size:13px}
+.gate .emailtease{color:var(--ivory);margin-top:10px}.gate .emailtease b{color:var(--champ)}.env{color:var(--champ);margin-right:4px}
+.mailme{margin-top:14px;border:1px solid var(--line, #E7E0D3);background:#fff;border-radius:18px;padding:18px 22px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;justify-content:space-between}
+.mm-text{display:flex;flex-direction:column;gap:2px;max-width:420px}.mm-text span{color:#4A5852;font-size:15px}
+.mm-row{display:flex;gap:10px;flex:1 1 320px;max-width:460px}
+.mailme input{flex:1 1 200px;min-width:0;min-height:46px;border-radius:999px;border:1px solid #D9D2C4;padding:0 18px;font:inherit;font-size:16px;background:#FBF8F2}
+.mailme button{min-height:46px;border:0;border-radius:999px;background:var(--ink);color:var(--ivory);font:inherit;font-weight:600;font-size:15px;padding:0 20px;cursor:pointer;white-space:nowrap}
+.mailme button:hover{opacity:.9}.mailme button[disabled]{opacity:.6;cursor:default}
+.mm-out{flex-basis:100%;margin:0;font-size:15px;color:#4A5852}.mm-out:empty{display:none}.mm-out.ok{color:#2F6B4F;font-weight:600}
 .fit{margin-top:30px;background:var(--ink2);border:1px solid #2A3D36;border-radius:18px;padding:22px 24px;max-width:720px}
 .fit label{display:block;font-weight:600;font-size:16px;margin-bottom:10px;color:var(--ivory)}
 .fit-row{display:flex;gap:10px;flex-wrap:wrap}
@@ -316,7 +336,7 @@ tr.fit td:first-child{box-shadow:inset 3px 0 0 var(--champ)}
 .mfade{filter:blur(4px);user-select:none;-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent)}
 .stick{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--ivory);border:1px solid #2A3D36;border-radius:999px;padding:8px 8px 8px 20px;box-shadow:0 10px 30px rgba(14,26,23,.25);font-weight:600;font-size:15px;max-width:calc(100% - 24px)}
 .stick[hidden]{display:none}.stick .btn{padding:10px 18px;font-size:14px;white-space:nowrap}
-@media (max-width:720px){.pitchwrap{grid-template-columns:1fr}.bar{grid-template-columns:84px minmax(0,1fr) 44px;font-size:14px}.stick{left:12px;right:12px;transform:none;justify-content:space-between;font-size:14px}.fit-out .btn{display:block;margin:12px 0 0;text-align:center}.hide-sm{display:none}.table td,.table th{padding:10px}.stat{flex:1 1 calc(50% - 12px);min-width:0}.gate .btn{width:100%;text-align:center}}
+@media (max-width:720px){.mm-row{flex-direction:column;max-width:none}.mailme button{width:100%}.pitchwrap{grid-template-columns:1fr}.bar{grid-template-columns:84px minmax(0,1fr) 44px;font-size:14px}.stick{left:12px;right:12px;transform:none;justify-content:space-between;font-size:14px}.fit-out .btn{display:block;margin:12px 0 0;text-align:center}.hide-sm{display:none}.table td,.table th{padding:10px}.stat{flex:1 1 calc(50% - 12px);min-width:0}.gate .btn{width:100%;text-align:center}}
 `;
 
 function layout({ title, description, canonical, body, jsonLd = [], ogTitle }) {
@@ -438,7 +458,7 @@ function cityPage(c, related, generatedAt) {
 <div class="stat"><b>${fmtInt(c.hotels.length)}</b><span>hotels with collabs</span></div>
 <div class="stat"><b>${fmtInt(c.collabs12 || c.collabs)}</b><span>${c.collabs12 ? 'collabs in the past year' : 'creator collabs found'}</span></div>
 ${smallest ? `<div class="stat"><b>${smallest}</b><span>smallest creator hosted</span></div>` : ''}
-<div class="stat"><b>${fmtMonth(c.last)}</b><span>most recent collab</span></div>
+${c.withEmail ? `<div class="stat"><b>${fmtInt(c.withEmail)}</b><span>with a contact email found</span></div>` : `<div class="stat"><b>${fmtMonth(c.last)}</b><span>most recent collab</span></div>`}
 </div>
 <form class="fit" id="fit" action="${esc(startFree)}" method="get" novalidate>
 <label for="fit-n">How many followers do you have?</label>
@@ -455,7 +475,12 @@ ${smallest ? `<div class="stat"><b>${smallest}</b><span>smallest creator hosted<
 <tbody>
 ${rows}
 </tbody></table></div>
-<div class="gate"><div><h3>See all ${fmtInt(c.hotels.length)} hotels in ${esc(c.city)}</h3><p>Names, each hotel's full collab history, the creators it hosted and the best email to pitch. Pitching ${esc(c.city)} soon? A Trip Pass unlocks every hotel here for 30 days, $15 one time.</p></div><div class="gate-cta"><a class="btn light" data-ev="view_gate" href="${esc(startFree)}">Start free</a><small>7-day free trial · No credit card</small></div></div>
+<div class="gate"><div><h3>See all ${fmtInt(c.hotels.length)} hotels in ${esc(c.city)}</h3>${c.withEmail ? `<p class="emailtease"><span class="env" aria-hidden="true">✉</span> We found a contact email for <b>${fmtInt(c.withEmail)} of these ${fmtInt(c.hotels.length)} hotels</b>, so you can pitch the right inbox, not a booking form.</p>` : ''}<p>Names, each hotel's full collab history, the creators it hosted and the best email to pitch. Pitching ${esc(c.city)} soon? A Trip Pass unlocks every hotel here for 30 days, $15 one time.</p></div><div class="gate-cta"><a class="btn light" data-ev="view_gate" href="${esc(startFree)}">Start free</a><small>7-day free trial · No credit card</small></div></div>
+<form class="mailme" id="mailme" novalidate>
+<div class="mm-text"><b>Not ready yet? Email me this list.</b><span>We'll send the ${esc(c.city)} list to your inbox so you have it when you plan the trip.</span></div>
+<div class="mm-row"><label class="sr" for="mm-email">Your email</label><input id="mm-email" type="email" autocomplete="email" placeholder="you@email.com" required><button type="submit">Email me the list</button></div>
+<p class="mm-out" id="mm-out" aria-live="polite"></p>
+</form>
 <p class="note">"Smallest creator" is the smallest follower count among creators we found collaborating with that hotel. Data updated ${fmtMonth(Date.parse(generatedAt))}.</p>
 </div></section>
 ${sizeChart}
@@ -480,7 +505,7 @@ ${related.length ? `<section><div class="wrap">
 <div class="stick" id="stick" hidden><span id="stick-t"></span><a class="btn light" id="stick-a" data-ev="view_sticky" href="${esc(startFree)}">View them free</a></div>
 <script>
 (function(){
-var D=${JSON.stringify(fitData)},CITY=${JSON.stringify(c.city)},TOTAL=D.length;
+var D=${JSON.stringify(fitData)},CITY=${JSON.stringify(c.city)},SLUG=${JSON.stringify(c.slug)},TOTAL=D.length;
 var f=document.getElementById('fit'),inp=document.getElementById('fit-n'),out=document.getElementById('fit-out');
 var stick=document.getElementById('stick'),stickT=document.getElementById('stick-t'),stickA=document.getElementById('stick-a');
 function ev(name,p){try{if(window.gtag)gtag('event',name,Object.assign({city:CITY},p||{}));}catch(e){}}
@@ -509,6 +534,18 @@ if(!n){out.textContent='Enter your follower count, like 4200 or 4.2K.';return;}
 run(n);
 });
 document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[data-ev]');if(a)ev('guide_signup_click',{where:a.getAttribute('data-ev')});});
+var mm=document.getElementById('mailme');
+if(mm){mm.addEventListener('submit',function(e){
+e.preventDefault();
+var em=document.getElementById('mm-email'),mo=document.getElementById('mm-out'),btn=mm.querySelector('button');
+var v=String(em.value||'').trim();
+if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(v)){mo.className='mm-out';mo.textContent='Enter a valid email address.';return;}
+var n=0;try{n=parseInt(localStorage.getItem('skipful_followers'),10)||0;}catch(x){}
+btn.disabled=true;mo.className='mm-out';mo.textContent='Sending...';
+fetch(${JSON.stringify(EMAIL_LIST_URL)},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:v,city:CITY,slug:SLUG,followers:n||null})})
+.then(function(r){if(!r.ok)throw new Error(r.status);mo.className='mm-out ok';mo.textContent='Sent. Check your inbox (and your spam folder, just in case).';em.value='';ev('email_list',{followers_bucket:n?bucket(n):'unknown'});})
+.catch(function(){mo.className='mm-out';mo.textContent='That did not go through. Check the address and try again.';btn.disabled=false;});
+});}
 try{var saved=parseInt(localStorage.getItem('skipful_followers'),10);if(saved>0){inp.value=saved.toLocaleString('en-US');run(saved);}}catch(e){}
 })();
 </script>`;
