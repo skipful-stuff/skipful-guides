@@ -30,7 +30,7 @@ jobs:
           SEO_EXPORT_KEY: ${{ secrets.SEO_EXPORT_KEY }}
           SITE_URL: ${{ vars.SITE_URL || 'https://guides.skipful.com' }}
           APP_URL: https://www.skipful.com
-          GA4_ID: ${{ vars.GA4_ID }}
+          GA4_ID: ${{ vars.GA4_ID || 'G-0GE9CVME4C' }}
           CNAME_DOMAIN: ${{ vars.CNAME_DOMAIN || 'guides.skipful.com' }}
         run: node build.mjs
       - uses: actions/upload-pages-artifact@v3
