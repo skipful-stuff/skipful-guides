@@ -29,3 +29,15 @@ Allowed only once captured collabs per month have stayed within ±20% of their a
 ## Done
 
 - 2026-11-20: The Small-Creator Advantage (`small-creator-advantage`)
+
+## Inbound series (added 2026-11-20)
+Done: 2026-11-20 — The Most Creator-Friendly Hotel Cities of 2026 (`creator-friendly-hotel-cities`). Snapshot: data/research/2026-11-creator-friendly-cities.json, computed with `computeCityRanking` in research.mjs (needs every tracked property, not only hotels with collabs). Re-rank each January as "... of 2027".
+
+Done: 2026-11-20 — Independent vs. Branded Hotels (`independent-vs-branded-hotels`). Snapshot: data/research/2026-11-independent-vs-branded.json via `computeChainStudy` + brands.mjs. Hand checks: 99/100 branded tags right; ~1 in 10 "independent" are small regional groups (disclosed). Never compare hosting *rates* between groups (tracking isn't an even sample).
+
+Next, in order:
+1. (done above) Independent vs chain hotels. Tag chains by matching hotel names to brand lists (internal only; publish aggregates). Spot-check ~100 tags by hand first. Early read: chains host at a slightly higher rate (12.3% vs 9.7%), but independents are ~70% of hotels that host. Lead with the second point, state the first honestly.
+2. Hosted-stay ROI benchmark + calculator. Modeled, not measured: label every assumption.
+3. Repeat hosting deep-dive (repeat rates only; no per-year counts until coverage is steady).
+4. Seasonality. Blocked until ~March 2027 (needs 12 steady months of collection).
+Dropped: "Luxury paradox" — the data shows 5-star hotels do skew to bigger creators. Covered honestly by "Luxury decoded".

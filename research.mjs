@@ -156,3 +156,148 @@ export function computeResearch({ collabs, props }, { now = Date.now(), cleanCit
     toughestCities: cityRows.filter(c => c.collabs >= 60 && c.hotels >= 8).sort((a, b) => a.under10k - b.under10k).slice(0, 6),
   };
 }
+
+// ---------- City ranking: "The Most Creator-Friendly Hotel Cities" ----------
+// allProps: every hotel Skipful tracks (with or without collabs), so each city has a real hosting rate.
+// Shares and rates only; no volume trends, no hotel names.
+export const RANK_MIN = { tracked: 30, hosts: 6, collabs12: 30 };
+const LODGING_TYPE = /hotel|resort|inn|motel|lodge|hostel|suites|guest ?house|bed (and|&) breakfast|b&b|villa|bungalow|ryokan|aparthotel|serviced apartment|cottage|cabin|glamping/i;
+
+export function computeCityRanking({ collabs, allProps }, { now = Date.now(), cleanCity = c => c, countryName = c => c, fold = s => String(s).toLowerCase(), top = 50 } = {}) {
+  const yearAgo = now - 365 * 864e5;
+  const seen = new Set();
+  const byHotel = new Map();
+  for (const c of collabs) {
+    if (!c.p) continue;
+    const key = c.i != null ? `id:${c.i}` : `${c.p}|${c.d}|${c.f}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const f = Number(c.f), t = c.d ? Date.parse(c.d) : NaN;
+    if (!(f >= MIN_REAL_FOLLOWERS) || Number.isNaN(t) || t > now + 864e5) continue;
+    let h = byHotel.get(c.p);
+    if (!h) byHotel.set(c.p, h = { n: 0, f12: [] });
+    h.n++;
+    if (t > yearAgo) h.f12.push(f);
+  }
+
+  const cities = new Map();
+  let tracked = 0, hosting = 0;
+  for (const p of allProps) {
+    if (!LODGING_TYPE.test(String(p.type || 'Hotel'))) continue;
+    const city = cleanCity(p.city || '');
+    if (!city) continue;
+    tracked++;
+    const country = countryName(p.country) || '';
+    const isUS = /^(US|USA|United States)$/i.test(String(p.country || '').trim());
+    const state = isUS ? String(p.state || '').trim() : '';
+    const key = fold(`${city}|${state}|${country}`);
+    let K = cities.get(key);
+    if (!K) cities.set(key, K = { key, city, state, country, isUS, tracked: 0, hosts: 0, repeat: 0, f12: [], five: 0, fiveHosts: 0 });
+    K.tracked++;
+    const five = Math.round(Number(p.stars)) === 5;
+    if (five) K.five++;
+    const h = byHotel.get(p.id);
+    if (h) {
+      hosting++;
+      K.hosts++;
+      if (h.n >= 2) K.repeat++;
+      for (const f of h.f12) K.f12.push(f);
+      if (five) K.fiveHosts++;
+    }
+  }
+
+  const rows = [...cities.values()].map(K => ({
+    key: K.key, city: K.city, state: K.state, country: K.country, isUS: K.isUS,
+    place: K.isUS && K.state ? `${K.city}, ${K.state}` : (K.country && K.country !== K.city ? `${K.city}, ${K.country}` : K.city),
+    tracked: K.tracked, hosts: K.hosts,
+    hostingRate: pct(K.hosts, K.tracked),
+    collabs12: K.f12.length,
+    under10k: pct(K.f12.filter(f => f < 1e4).length, K.f12.length),
+    medianFollowers: median(K.f12),
+    repeatRate: pct(K.repeat, K.hosts),
+    fiveStar: K.five, fiveStarHosts: K.fiveHosts, fiveStarHostingRate: pct(K.fiveHosts, K.five),
+  }));
+  const eligible = rows.filter(r => r.tracked >= RANK_MIN.tracked && r.hosts >= RANK_MIN.hosts && r.collabs12 >= RANK_MIN.collabs12);
+
+  // Score: equal-weighted percentile ranks of three rates, scaled 0-100.
+  const pctRank = (list, k) => { const s = list.map(r => r[k]).sort((a, b) => a - b); return v => (s.length > 1 ? (s.filter(x => x < v).length + (s.filter(x => x === v).length - 1) / 2) / (s.length - 1) : 1); };
+  const pr = { hostingRate: pctRank(eligible, 'hostingRate'), under10k: pctRank(eligible, 'under10k'), repeatRate: pctRank(eligible, 'repeatRate') };
+  for (const r of eligible) r.score = Math.round(((pr.hostingRate(r.hostingRate) + pr.under10k(r.under10k) + pr.repeatRate(r.repeatRate)) / 3) * 100);
+  eligible.sort((a, b) => (b.score - a.score) || (b.hostingRate - a.hostingRate) || (b.hosts - a.hosts));
+  eligible.forEach((r, i) => { r.rank = i + 1; });
+
+  const topN = (list, k, n = 5) => [...list].sort((a, b) => (b[k] - a[k]) || (b.hosts - a.hosts)).slice(0, n).map(r => ({ key: r.key, place: r.place, value: r[k] }));
+  return {
+    generatedAt: new Date(now).toISOString(),
+    method: { min: RANK_MIN, weights: { hostingRate: 1 / 3, under10k: 1 / 3, repeatRate: 1 / 3 } },
+    totals: { tracked, hosting, cities: rows.filter(r => r.hosts > 0).length, eligible: eligible.length },
+    ranking: eligible.slice(0, top).map(({ fiveStarHostingRate, ...r }) => r),
+    categories: {
+      smallCreators: topN(eligible, 'under10k'),
+      mostOpen: topN(eligible, 'hostingRate'),
+      luxury: topN(eligible.filter(r => r.fiveStar >= 6 && r.fiveStarHosts >= 4), 'fiveStarHostingRate').map(x => ({ ...x, of: eligible.find(r => r.key === x.key).fiveStar, hosts: eligible.find(r => r.key === x.key).fiveStarHosts })),
+      loyalHosts: topN(eligible.filter(r => r.hosts >= 10), 'repeatRate'),
+    },
+  };
+}
+
+// ---------- Branded vs independent hotels ----------
+// chainOf(title) -> parent group or null. Shares and rates only; never per-hotel output.
+export function computeChainStudy({ collabs, allProps }, { now = Date.now(), chainOf, isUSFn = c => /^(US|USA|United States)$/i.test(String(c || '').trim()) } = {}) {
+  const yearAgo = now - 365 * 864e5;
+  const seen = new Set();
+  const byHotel = new Map();
+  for (const c of collabs) {
+    if (!c.p) continue;
+    const key = c.i != null ? `id:${c.i}` : `${c.p}|${c.d}|${c.f}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const f = Number(c.f), t = c.d ? Date.parse(c.d) : NaN;
+    if (!(f >= MIN_REAL_FOLLOWERS) || Number.isNaN(t) || t > now + 864e5) continue;
+    let h = byHotel.get(c.p);
+    if (!h) byHotel.set(c.p, h = { n: 0, f12: [] });
+    h.n++;
+    if (t > yearAgo) h.f12.push(f);
+  }
+  const blank = () => ({ tracked: 0, hosts: 0, repeat: 0, repeat5: 0, f12: [] });
+  const G = { branded: blank(), independent: blank() };
+  const byStar = {}, byRegion = {}, byParent = {};
+  const add = (bucket, p, h) => {
+    bucket.tracked++;
+    if (!h) return;
+    bucket.hosts++;
+    if (h.n >= 2) bucket.repeat++;
+    if (h.n >= 5) bucket.repeat5++;
+    for (const f of h.f12) bucket.f12.push(f);
+  };
+  for (const p of allProps) {
+    if (!LODGING_TYPE.test(String(p.type || 'Hotel'))) continue;
+    const parent = chainOf(p.title);
+    const g = parent ? 'branded' : 'independent';
+    const h = byHotel.get(p.id);
+    add(G[g], p, h);
+    const st = Math.round(Number(p.stars));
+    if (st >= 2 && st <= 5) { const k = `${st}-star`; byStar[k] ??= { branded: blank(), independent: blank() }; add(byStar[k][g], p, h); }
+    const reg = isUSFn(p.country) ? 'US' : 'International';
+    byRegion[reg] ??= { branded: blank(), independent: blank() };
+    add(byRegion[reg][g], p, h);
+    if (parent) { byParent[parent] ??= blank(); add(byParent[parent], p, h); }
+  }
+  const sum = b => ({
+    trackedShare: null, tracked: b.tracked, hosts: b.hosts,
+    hostingRate: pct(b.hosts, b.tracked), repeatRate: pct(b.repeat, b.hosts), repeat5Rate: pct(b.repeat5, b.hosts),
+    collabs12: b.f12.length, ...(() => { const s = split(b.f12); return { under10k: s.under10k, over100k: s.over100k, median: s.median, buckets: s.buckets }; })(),
+  });
+  const pair = o => ({ branded: sum(o.branded), independent: sum(o.independent) });
+  const out = { generatedAt: new Date(now).toISOString(), groups: pair(G), byStar: {}, byRegion: {}, byParent: {} };
+  const T = G.branded.tracked + G.independent.tracked, Hh = G.branded.hosts + G.independent.hosts, C12 = G.branded.f12.length + G.independent.f12.length;
+  for (const g of ['branded', 'independent']) {
+    out.groups[g].trackedShare = pct(G[g].tracked, T);
+    out.groups[g].hostShare = pct(G[g].hosts, Hh);
+    out.groups[g].collabShare12 = pct(G[g].f12.length, C12);
+  }
+  for (const [k, v] of Object.entries(byStar)) out.byStar[k] = pair(v);
+  for (const [k, v] of Object.entries(byRegion)) out.byRegion[k] = pair(v);
+  for (const [k, v] of Object.entries(byParent)) if (v.hosts >= 30 && v.f12.length >= 60) out.byParent[k] = sum(v);
+  return out;
+}

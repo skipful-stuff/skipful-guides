@@ -620,6 +620,24 @@ ${countries.map(([country, list]) => `<div class="country"><h3>${esc(country)}</
 const STATS_SLUG = 'hotel-influencer-marketing-statistics';
 const REPORTS = [
   {
+    slug: 'independent-vs-branded-hotels',
+    kind: 'chain',
+    snapshot: 'data/research/2026-11-independent-vs-branded.json',
+    published: '2026-11-20',
+    title: 'Independent vs. Branded Hotels: Where Small Creators Get the Yes',
+    short: 'Independent vs. branded hotels',
+    dek: 'Independent hotels give creators under 10K nearly 40% more of their collabs than branded hotels, at every star level. Branded hotels are more likely to make creator stays a habit.',
+  },
+  {
+    slug: 'creator-friendly-hotel-cities',
+    kind: 'ranking',
+    snapshot: 'data/research/2026-11-creator-friendly-cities.json',
+    published: '2026-11-20',
+    title: 'The Most Creator-Friendly Hotel Cities of 2026',
+    short: 'Creator-friendly hotel cities 2026',
+    dek: 'We ranked 87 cities by how often their hotels host creators, how open they are to small creators, and how often they come back for more. Here are the top 50.',
+  },
+  {
     slug: 'small-creator-advantage',
     snapshot: 'data/research/2026-11-small-creator-advantage.json',
     published: '2026-11-20',
@@ -759,6 +777,158 @@ ${citeBox(rep.title, url, rep.published)}
   return { url, html: layout({ title: `${rep.title} | Skipful Research`, description: rep.dek, canonical: url, body, jsonLd, ogTitle: rep.title }) };
 }
 
+function chainPage(rep, S) {
+  const url = `${RESEARCH_URL}/${rep.slug}/`;
+  const B = S.groups.branded, I = S.groups.independent;
+  const stars = ['3-star', '4-star', '5-star'].filter(k => S.byStar[k]);
+  const lift = Math.round((I.under10k / B.under10k - 1) * 100);
+  const MAJORS = ['Marriott', 'Hilton', 'Hyatt', 'IHG', 'Accor'];
+  const P = MAJORS.filter(k => S.byParent[k] && S.byParent[k].collabs12 >= 500).map(k => ({ k, ...S.byParent[k] })).sort((a, b) => b.under10k - a.under10k);
+  const pair = (label, b, i, key) => [{ label: `${label} · Independent`, value: i[key], n: i.collabs12, hi: true }, { label: `${label} · Branded`, value: b[key], n: b.collabs12 }];
+  const chStars = barChart({ id: 'under10k-by-star', title: 'Share of collabs that went to creators under 10K', subtitle: 'Independent vs. branded hotels, by star rating, last 12 months', rows: Object.assign([...pair('All hotels', B, I, 'under10k'), ...stars.flatMap(k => pair(k.replace('-star', '-star'), S.byStar[k].branded, S.byStar[k].independent, 'under10k'))], { label: 'Group' }), max: 50, note: 'Highlighted: independent hotels', citeUrl: url });
+  const chSize = barChart({ id: 'size-mix', title: 'Who each kind of hotel hosts, by creator follower count', subtitle: 'Share of collabs, last 12 months', rows: Object.assign(I.buckets.flatMap((x, n) => [{ label: `${x.label} · Independent`, value: x.pct, hi: true }, { label: `${x.label} · Branded`, value: B.buckets[n].pct }]), { label: 'Followers' }), note: 'Highlighted: independent hotels', citeUrl: url });
+  const chRepeat = barChart({ id: 'repeat', title: 'Hotels that host creators again', subtitle: 'Share of hosting hotels with 2+ and 5+ creator collabs', rows: Object.assign([{ label: '2+ collabs · Independent', value: I.repeatRate, hi: true }, { label: '2+ collabs · Branded', value: B.repeatRate }, { label: '5+ collabs · Independent', value: I.repeat5Rate, hi: true }, { label: '5+ collabs · Branded', value: B.repeat5Rate }], { label: 'Group' }), max: 100, note: 'Highlighted: independent hotels', citeUrl: url });
+  const chParent = P.length >= 3 ? barChart({ id: 'by-group', title: 'Share of collabs to creators under 10K, by hotel group', subtitle: 'Brands grouped by parent company, last 12 months', rows: Object.assign(P.map(p => ({ label: `${p.k} (${p.collabs12.toLocaleString('en-US')} collabs)`, value: p.under10k, n: p.collabs12 })).concat([{ label: `Independent hotels (${I.collabs12.toLocaleString('en-US')} collabs)`, value: I.under10k, n: I.collabs12, hi: true }]), { label: 'Hotel group' }), max: 50, citeUrl: url }) : '';
+  const body = researchHead(S, {
+    title: rep.title, url, eyebrow: 'Skipful Research · Data report', lede: esc(rep.dek),
+    meta: `By the ${BYLINE} · Published ${longDate(rep.published)} · Data through ${longDate(S.generatedAt)}`,
+  }) + `<main>
+<section><div class="wrap">
+<div class="stats" style="margin-top:0">
+<div class="stat" style="background:var(--ink)"><b>${pctFmt(I.hostShare)}</b><span>of hotels that host creators are independent</span></div>
+<div class="stat" style="background:var(--ink)"><b>${pctFmt(I.under10k)}</b><span>of independent hotels' collabs go to creators under 10K</span></div>
+<div class="stat" style="background:var(--ink)"><b>${pctFmt(B.under10k)}</b><span>at branded hotels</span></div>
+<div class="stat" style="background:var(--ink)"><b>${pctFmt(B.repeatRate)}</b><span>of branded hosts work with creators again (independent: ${pctFmt(I.repeatRate)})</span></div>
+</div>
+</div></section>
+<section><div class="wrap r-body">
+<h2>Key findings</h2>
+<ul>
+<li><b>Independents are most of the market.</b> ${pctFmt(I.hostShare)} of the hotels that host creators in our data are independent, and they accounted for ${pctFmt(I.collabShare12)} of hotel–creator collabs in the last 12 months.</li>
+<li><b>They're far more open to small creators.</b> ${pctFmt(I.under10k)} of independent hotels' collabs went to creators under 10K, versus ${pctFmt(B.under10k)} at branded hotels, about ${lift}% more. The typical creator at an independent hotel had ${kFmt(I.median)} followers; at a branded hotel, ${kFmt(B.median)}.</li>
+<li><b>It holds at every star level</b> (independent vs. branded): ${andList(stars.map(k => `${k}: ${pctFmt(S.byStar[k].independent.under10k)} vs. ${pctFmt(S.byStar[k].branded.under10k)}`))}. It holds in the US (${pctFmt(S.byRegion.US.independent.under10k)} vs. ${pctFmt(S.byRegion.US.branded.under10k)}) and internationally (${pctFmt(S.byRegion.International.independent.under10k)} vs. ${pctFmt(S.byRegion.International.branded.under10k)}) too.</li>
+<li><b>Branded hotels make it a habit.</b> ${pctFmt(B.repeatRate)} of branded hotels that host creators have done it more than once, and ${pctFmt(B.repeat5Rate)} five or more times. For independents: ${pctFmt(I.repeatRate)} and ${pctFmt(I.repeat5Rate)}.</li>
+${P.length >= 3 ? `<li><b>Among the big groups, ${esc(P[0].k)} brands lean toward the smallest creators</b> (${pctFmt(P[0].under10k)} of collabs to creators under 10K) and <b>${esc(P[P.length - 1].k)} brands lean toward the biggest</b> (${pctFmt(P[P.length - 1].under10k)}).</li>` : ''}
+</ul>
+<p class="pull">Small creators get a bigger share of the yeses at independent hotels, at every star level.</p>
+<h2>1. Small creators win more at independent hotels</h2>
+<p>The data can't tell us why, but a likely reason is who decides. At an independent hotel, the owner or general manager can often say yes to a stay on the spot. At a branded hotel, creator partnerships may run through brand marketing teams and programs built around reach. Either way, branded hotels give ${pctFmt(B.over100k)} of their collabs to creators with 100K+ followers, versus ${pctFmt(I.over100k)} at independents.</p>
+${chSize}
+<h2>2. The gap holds at every star level</h2>
+<p>Branded hotels that host creators in our data skew toward 4- and 5-star properties, and higher-star hotels host bigger creators. So we compared like with like. At every star level, independents gave a larger share of their collabs to creators under 10K. The gap is widest at 4-star hotels (${pctFmt(S.byStar['4-star'].independent.under10k)} vs. ${pctFmt(S.byStar['4-star'].branded.under10k)}), the most common tier for hosted stays.</p>
+${chStars}
+<h2>3. Branded hotels are steadier partners</h2>
+<p>Once a branded hotel starts working with creators, it tends to keep going. That fits brands that run creator programs with budgets and calendars. For creators, a branded hotel that has hosted before is a strong repeat target, especially once you've grown past 10K.</p>
+${chRepeat}
+${chParent ? `<h2>4. Not all hotel groups are alike</h2>
+<p>Grouping branded hotels by parent company shows real differences. ${esc(P[0].k)} brands gave ${pctFmt(P[0].under10k)} of their collabs to creators under 10K, close to independent hotels. ${esc(P[P.length - 1].k)} brands gave ${pctFmt(P[P.length - 1].under10k)}, and their typical creator had ${kFmt(P[P.length - 1].median)} followers.</p>
+${chParent}` : ''}
+<h2>What it means</h2>
+<p><b>For creators under 10K:</b> lead with independent and boutique hotels. A bigger share of their collabs go to creators your size, at every star level. Use branded hotels as the next step: they host more consistently, and a hotel that has already worked with creators is the warmest pitch you can send.</p>
+<p><b>For independent hotels:</b> you're already where most creator partnerships happen. More than a third of independent hotels' creator collabs already go to creators under 10K, so pitches from smaller creators are worth a real look.</p>
+<p><b>For brands:</b> branded hotels lean toward bigger audiences, and small creators already get about a quarter of their collabs. Creators under 10K are a real part of the market at branded hotels too.</p>
+${researchCta(rep.slug)}
+</div></section>
+<section><div class="wrap r-body"><h2>Methodology</h2>
+<p>Skipful identifies public social media posts that our system classifies as hotel–creator collaborations (a creator posting about a stay at a specific hotel), links each post to the hotel, and records the creator's follower count when we collected it. Figures cover collabs in the 12 months to ${longDate(S.generatedAt)} unless noted. Accounts under 500 followers are excluded as likely data errors.</p>
+<p><b>Branded vs. independent.</b> We tagged a hotel as branded when its name contains a known brand of a major or regional hotel group (for example "Courtyard by Marriott" or "Hotel Indigo"). Everything else counts as independent. We checked the tagging by hand on random samples: 99 of 100 branded tags were correct, but about 1 in 10 hotels tagged independent actually belonged to a smaller regional group. So the independent figures include some small chains, which if anything narrows the gaps we report. Star ratings come from public listing data.</p>
+<p><b>What we don't compare.</b> We don't compare how <i>often</i> branded and independent hotels host creators, because the hotels we track aren't an even sample of each group. We report shares within each group instead. Group-level figures are only shown where a group had at least 500 collabs in the period, and cover every hotel operating under that group's brands, including franchised and independently owned hotels. Groups with fewer collabs have wider margins of error, so small differences between groups shouldn't be over-read. All figures are aggregates; we do not publish individual hotels' or creators' data.</p>
+${citeBox(rep.title, url, rep.published)}
+</div></section>
+</main>`;
+  const jsonLd = [{
+    '@context': 'https://schema.org', '@type': 'Article', headline: rep.title, description: rep.dek, url,
+    datePublished: rep.published, dateModified: rep.published,
+    author: { '@type': 'Organization', name: BYLINE }, publisher: { '@type': 'Organization', name: 'Skipful', url: APP_URL, logo: { '@type': 'ImageObject', url: `${SITE_URL}/favicon.png` } },
+    image: `${SITE_URL}/og.png`, mainEntityOfPage: url,
+  }];
+  return { url, html: layout({ title: `${rep.title} | Skipful Research`, description: rep.dek, canonical: url, body, jsonLd, ogTitle: rep.title }) };
+}
+
+const DISPLAY_PLACE = { 'Brisbane City, Australia': 'Brisbane, Australia', 'Washington, District of Columbia': 'Washington, D.C.' };
+const displayPlace = p => DISPLAY_PLACE[p] || p;
+const shortPlace = p => (/^Portland, /.test(p) ? `Portland (${p.split(', ')[1]})` : displayPlace(p).split(', ')[0]);
+
+function rankingPage(rep, S, slugByKey) {
+  const url = `${RESEARCH_URL}/${rep.slug}/`;
+  const T = S.ranking, top = T.slice(0, 10), C = S.categories;
+  const anchor = r => slugByKey.get(r.key) || r.key.replace(/[^a-z0-9]+/g, '-');
+  const guide = key => { const s = slugByKey.get(key); return s ? `${SITE_URL}/${SECTION}/${s}/` : null; };
+  const placeLink = (key, place) => { const g = guide(key); return g ? `<a href="${g}">${esc(displayPlace(place))}</a>` : esc(displayPlace(place)); };
+  const intl = T.filter(r => !r.isUS), us = T.filter(r => r.isUS);
+  const catCard = (title, sub, list, fmt) => `<div class="rk-cat"><h3>${title}</h3><p class="note">${sub}</p><ol>${list.map(x => `<li>${placeLink(x.key, x.place)} <b>${fmt(x.value)}</b></li>`).join('')}</ol></div>`;
+  const rows = T.map(r => `<tr id="${anchor(r)}"><td class="rk-n">${r.rank}</td><td class="rk-city">${placeLink(r.key, r.place)}</td><td class="rk-score"><b>${r.score}</b></td><td>${pctFmt(r.hostingRate)}</td><td>${pctFmt(r.under10k)}</td><td>${pctFmt(r.repeatRate)}</td><td>${kFmt(r.medianFollowers)}</td></tr>`).join('\n');
+  const body = researchHead(S, {
+    title: rep.title, url, eyebrow: 'Skipful Research · City ranking', lede: esc(rep.dek),
+    meta: `By the ${BYLINE} · Published ${longDate(rep.published)} · Data through ${longDate(S.generatedAt)}`,
+  }) + `<style>
+.rk-top{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:8px 0 6px}
+.rk-top a{display:block;background:var(--ink);color:var(--ivory);border-radius:12px;padding:14px 14px 12px;text-decoration:none}
+.rk-top a small{color:var(--champ);font-weight:600;letter-spacing:.04em}.rk-top a b{display:block;font-size:17px;margin:2px 0 4px;line-height:1.2}.rk-top a span{font-size:13px;color:var(--mist)}
+.rk-cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:12px 0 4px}
+.rk-cat{border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:16px 18px}.rk-cat h3{margin:0 0 2px;font-size:18px}.rk-cat ol{margin:10px 0 0;padding-left:20px}.rk-cat li{margin:4px 0}.rk-cat li b{float:right;font-variant-numeric:tabular-nums}
+.rk-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:14px 0}
+.rk{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums;min-width:600px}
+.rk th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#6b6b6b;padding:8px 8px;border-bottom:2px solid rgba(0,0,0,.12);vertical-align:bottom}
+.rk td{padding:9px 8px;border-bottom:1px solid rgba(0,0,0,.07)}.rk tr:target td{background:#fbf3e4}
+.rk-n{color:#8a8a8a;width:34px}.rk-city{font-weight:600}.rk-score b{display:inline-block;min-width:34px;text-align:center;background:var(--ink);color:var(--ivory);border-radius:6px;padding:2px 6px}
+main code{overflow-wrap:anywhere}
+@media(max-width:640px){.rk-top{grid-template-columns:1fr 1fr}}
+</style><main>
+<section><div class="wrap">
+<h2 style="margin-top:0">The top 10</h2>
+<div class="rk-top">${top.map(r => `<a href="#${anchor(r)}"><small>#${r.rank}</small><b>${esc(shortPlace(r.place))}</b><span>Score ${r.score} · ${pctFmt(r.under10k)} small creators</span></a>`).join('')}</div>
+</div></section>
+<section><div class="wrap r-body">
+<h2>Key findings</h2>
+<ul>
+<li><b>${esc(displayPlace(T[0].place))}</b> and <b>${esc(displayPlace(T[1].place))}</b> tie for the top score (${T[0].score}). In ${esc(shortPlace(T[1].place))}, ${pctFmt(T[1].under10k)} of hotel collabs went to creators under 10K and ${pctFmt(T[1].repeatRate)} of hosting hotels came back for more.</li>
+<li><b>Smaller cities beat famous ones.</b> ${esc(andList(top.filter(r => /^(La Jolla|San Luis Obispo|Portland, Maine|Napa|Pittsburgh)/.test(r.place)).map(r => shortPlace(r.place))))} all make the top 10, ahead of bigger names like ${esc(andList(T.filter(r => /^(San Francisco|Las Vegas|Nashville|San Diego)/.test(r.place)).map(r => `${shortPlace(r.place)} (#${r.rank})`)))}.</li>
+<li><b>${esc(shortPlace(C.mostOpen[0].place))}</b> has the highest share of hotels that have hosted creators (${pctFmt(C.mostOpen[0].value)}), followed by ${esc(andList(C.mostOpen.slice(1, 3).map(x => shortPlace(x.place))))}.</li>
+<li><b>${esc(shortPlace(C.smallCreators[0].place))}</b> is the most open to small creators: ${pctFmt(C.smallCreators[0].value)} of its hotel collabs went to creators under 10K, against ${pctFmt(T.find(r => /^Las Vegas/.test(r.place))?.under10k ?? 0)} in Las Vegas.</li>
+<li>${intl.length} of the top 50 are outside the US, led by ${esc(andList(intl.slice(0, 3).map(r => `${shortPlace(r.place)} (#${r.rank})`)))}.</li>
+</ul>
+<p class="pull">The best city to pitch isn't the most famous one. It's the one where hotels already say yes to creators like you.</p>
+</div><div class="wrap"><h2>Category winners</h2><div class="rk-cats">
+${catCard('Best for small creators', 'Share of collabs going to creators under 10K', C.smallCreators, pctFmt)}
+${catCard('Most open hotels', 'Share of tracked hotels that have hosted creators', C.mostOpen, pctFmt)}
+${catCard('Most loyal hosts', 'Share of hosting hotels that hosted more than once', C.loyalHosts, pctFmt)}
+</div></div></section>
+<section><div class="wrap">
+<h2>The full ranking: top 50 creator-friendly hotel cities</h2>
+<p class="note">Tap a city to see the hotels there that work with creators. Each row has its own link to share (for example <code>${url}#${anchor(T[1])}</code>).</p>
+<div class="rk-wrap"><table class="rk"><thead><tr><th>#</th><th>City</th><th>Score</th><th>Hotels that host</th><th>Small-creator share</th><th>Repeat hosts</th><th>Median creator</th></tr></thead><tbody>
+${rows}
+</tbody></table></div>
+<p class="note"><b>Score</b> (0–100) averages each city's percentile on the three rates. <b>Hotels that host</b>: share of the hotels Skipful tracks in that city that have hosted at least one creator. <b>Small-creator share</b>: share of the city's hotel collabs in the last 12 months that went to creators under 10K followers. <b>Repeat hosts</b>: share of hosting hotels with more than one collab. <b>Median creator</b>: median follower count of creators hosted in the last 12 months.</p>
+</div></section>
+<section><div class="wrap r-body">
+<h2>What it means</h2>
+<p><b>For creators:</b> where you pitch matters as much as how many followers you have. In the top-ranked cities, hotels already work with creators, often small ones, and most come back for more. Start there, use the city guides to find hotels that have hosted creators near your size, and pitch the ones that host repeatedly.</p>
+<p><b>For hotels and tourism boards:</b> in the top cities, creator stays are already standard practice for a large share of hotels. A hotel in ${esc(shortPlace(T[0].place))} or ${esc(shortPlace(T[1].place))} that isn't hosting creators is the exception, not the rule.</p>
+<p><b>For journalists:</b> every city has its own row, link and numbers. We're happy to share more detail on a specific city for a local story: email <a href="mailto:${PRESS_EMAIL}?subject=Press%3A%20Creator-friendly%20cities">${PRESS_EMAIL}</a>.</p>
+${researchCta(rep.slug)}
+</div></section>
+<section><div class="wrap r-body"><h2>Methodology</h2>
+<p>Skipful identifies public social media posts that our system classifies as hotel–creator collaborations (a creator posting about a stay at a specific hotel), links each post to the hotel, and records the creator's follower count when we collected it. We also track hotels from public listing data, whether or not they have hosted a creator. As of ${longDate(S.generatedAt)}, that covers ${S.totals.tracked.toLocaleString('en-US')} hotels and other lodging properties.</p>
+<p>A city is ranked only if Skipful tracks at least ${S.method.min.tracked} hotels there, at least ${S.method.min.hosts} of them have hosted creators, and they had at least ${S.method.min.collabs12} creator collabs in the last 12 months. ${S.totals.eligible} cities qualified. For each, we computed three rates (hotels that host, small-creator share, repeat hosts), converted each to a percentile among the qualifying cities, and averaged the three with equal weight. Ties are broken by hosting rate.</p>
+<p>"Hotels that host" is a share of the hotels <i>Skipful tracks</i>, not of every hotel in the city, and our coverage of each city's hotels varies. Coverage also skews toward hotels and creators that post publicly and tag properties, and toward English-language markets. Accounts under 500 followers are excluded as likely data errors. Neighborhoods are grouped into their city where listings use them (for example, Seminyak and Canggu count as Bali). All figures are aggregates; we do not publish individual hotels' or creators' data.</p>
+<p>This ranking uses a fixed snapshot of the data so the numbers stay citable. For our broader figures, see <a href="${RESEARCH_URL}/${STATS_SLUG}/">Hotel Influencer Marketing Statistics</a>.</p>
+${citeBox(rep.title, url, rep.published)}
+</div></section>
+</main>`;
+  const jsonLd = [{
+    '@context': 'https://schema.org', '@type': 'Article', headline: rep.title, description: rep.dek, url,
+    datePublished: rep.published, dateModified: rep.published,
+    author: { '@type': 'Organization', name: BYLINE }, publisher: { '@type': 'Organization', name: 'Skipful', url: APP_URL, logo: { '@type': 'ImageObject', url: `${SITE_URL}/favicon.png` } },
+    image: `${SITE_URL}/og.png`, mainEntityOfPage: url,
+  }, {
+    '@context': 'https://schema.org', '@type': 'ItemList', name: rep.title, numberOfItems: T.length,
+    itemListElement: T.map(r => ({ '@type': 'ListItem', position: r.rank, name: displayPlace(r.place), url: `${url}#${anchor(r)}` })),
+  }];
+  return { url, html: layout({ title: `${rep.title} | Skipful Research`, description: `${displayPlace(T[0].place)} and ${displayPlace(T[1].place)} top our ranking of 87 cities by how often hotels host creators, openness to small creators, and repeat hosting. See all 50.`, canonical: url, body, jsonLd, ogTitle: rep.title }) };
+}
+
 function researchHub(R) {
   const url = `${RESEARCH_URL}/`;
   const body = researchHead(R, {
@@ -789,7 +959,7 @@ ${barChart({ id: key, ...c, citeUrl: src }).replace(/<a href=/g, '<a target="_bl
 </body></html>`;
 }
 
-async function writeResearch(raw) {
+async function writeResearch(raw, cities = []) {
   const R = process.env.RESEARCH_DATA
     ? JSON.parse(await fs.readFile(path.join(ROOT, process.env.RESEARCH_DATA), 'utf8'))
     : computeResearch(raw, { cleanCity, countryName });
@@ -800,7 +970,7 @@ async function writeResearch(raw) {
   const st = statsPage(R); await put(STATS_SLUG, st.html); urls.push(st.url);
   for (const rep of REPORTS) {
     const snap = JSON.parse(await fs.readFile(path.join(ROOT, rep.snapshot), 'utf8'));
-    const pg = reportPage(rep, snap); await put(rep.slug, pg.html); urls.push(pg.url);
+    const pg = rep.kind === 'chain' ? chainPage(rep, snap) : rep.kind === 'ranking' ? rankingPage(rep, snap, new Map(cities.map(c => [fold(`${c.city}|${c.isUS ? c.state : ''}|${c.country}`), c.slug]))) : reportPage(rep, snap); await put(rep.slug, pg.html); urls.push(pg.url);
   }
   for (const key of Object.keys(researchCharts(R))) await put(`embed/${key}`, embedPage(R, key));
   await fs.mkdir(path.join(base, 'data'), { recursive: true });
@@ -840,7 +1010,7 @@ async function main() {
     urls.push(url);
   }
 
-  for (const u of await writeResearch(raw)) urls.push(u);
+  for (const u of await writeResearch(raw, cities)) urls.push(u);
 
   const totals = { hotels: cities.reduce((s, c) => s + c.hotels.length, 0), collabs: cities.reduce((s, c) => s + c.collabs, 0) };
   await fs.writeFile(path.join(OUT, 'index.html'), indexPage(cities, totals));
